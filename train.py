@@ -201,7 +201,7 @@ if __name__=="__main__":
         collate_fn = discrete_collate
     else:
         raise ValueError("input_type:{} not supported".format(hp.input_type))
-    data_loader = DataLoader(dataset, collate_fn=collate_fn, shuffle=True, num_workers=0, batch_size=hp.batch_size)
+    data_loader = DataLoader(dataset, collate_fn=collate_fn, shuffle=True, num_workers=int(hp.num_workers), batch_size=hp.batch_size)
     device = torch.device("cuda" if use_cuda else "cpu")
     print("using device:{}".format(device))
 

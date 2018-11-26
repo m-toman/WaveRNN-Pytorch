@@ -1,17 +1,17 @@
 class hparams:
 
     # option parameters
-
+    num_workers = 8
     # Input type:
     # 1. raw [-1, 1]
     # 2. mixture [-1, 1]
     # 3. bits [0, 512]
     # 4. mulaw[0, mulaw_quantize_channels]
     #
-    input_type = 'raw'
+    input_type = 'bits'
     #
     # distribution type, currently supports only 'beta' and 'mixture'
-    distribution = 'gaussian' # or "mixture"
+    distribution = 'beta' # or "mixture"
     log_scale_min = -32.23619130191664 # = float(np.log(1e-7))
     quantize_channels = 65536 # quantize channel used for compute loss for mixture of logistics
     #
@@ -29,7 +29,7 @@ class hparams:
     fft_size = 1024
     hop_size = 256
     win_length = 1024
-    sample_rate = 22050
+    sample_rate = 24000
     preemphasis = 0.97
     min_level_db = -100
     ref_level_db = 20
@@ -40,12 +40,12 @@ class hparams:
     #
     #----------------
     # model parameters
-    rnn_dims = 600
+    rnn_dims = 512
     fc_dims = 512
     pad = 2
     # note upsample factors must multiply out to be equal to hop_size, so adjust
     # if necessary (i.e 4 x 4 x 16 = 256)
-    upsample_factors = (4, 4, 16)
+    upsample_factors = (4, 8, 8)
     compute_dims = 128
     res_out_dims = 128
     res_blocks = 10
@@ -53,7 +53,7 @@ class hparams:
     #
     #----------------
     # training parameters
-    batch_size = 32
+    batch_size = 64
     nepochs = 5000
     save_every_step = 10000
     evaluate_every_step = 5000
@@ -63,7 +63,7 @@ class hparams:
     grad_norm = 10
     #learning rate parameters
     initial_learning_rate=1e-3
-    lr_schedule_type = 'step' # or 'noam'
+    lr_schedule_type = 'noam' # or 'noam'
     # for noam learning rate schedule
     noam_warm_up_steps = 2000 * (batch_size // 16)
     # for step learning rate schedule
