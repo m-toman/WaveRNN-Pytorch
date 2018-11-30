@@ -79,7 +79,8 @@ class UpsampleNetwork(nn.Module) :
         aux = self.resnet_stretch(aux)
         aux = aux.squeeze(1)
         m = m.unsqueeze(1)
-        for f in self.up_layers : m = f(m)
+        for f in self.up_layers:
+            m = f(m)
         m = m.squeeze(1)[:, :, self.indent:-self.indent]
         return m.transpose(1, 2), aux.transpose(1, 2)
 
