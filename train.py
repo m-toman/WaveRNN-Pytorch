@@ -5,6 +5,7 @@ usage: train.py [options] <data-root>
 options:
     --checkpoint-dir=<dir>      Directory where to save model checkpoints [default: checkpoints].
     --checkpoint=<path>         Restore model from checkpoint path if given.
+    --log-event-path=<path>     Path to tensorboard event log
     -h, --help                  Show this help message and exit
 """
 from docopt import docopt
@@ -12,14 +13,14 @@ from docopt import docopt
 import os
 from os.path import dirname, join, expanduser
 from tqdm import tqdm
+from datetime import datetime
 
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import librosa
-
-from model import build_model
+from tensorboardX import SummaryWriter
 
 import torch
 from torch import nn
@@ -113,6 +114,7 @@ def evaluate_model(model, data_loader, checkpoint_dir, limit_eval_to=5):
             fig_path = os.path.join(output_dir,"checkpoint_step{:09d}_wav_{}.png".format(global_step,counter))
             fig = plt.plot(wav.reshape(-1))
             plt.savefig(fig_path)
+
             # clear fig to drawing to the same plot
             plt.clf()
             counter += 1
@@ -160,11 +162,17 @@ def train_loop(device, model, data_loader, optimizer, checkpoint_dir):
             optimizer.zero_grad()
             loss.backward()
             # clip gradient norm
-            nn.utils.clip_grad_norm_(model.parameters(), hp.grad_norm)
+            grad_norm = nn.utils.clip_grad_norm_(model.parameters(), hp.grad_norm)
             optimizer.step()
 
             running_loss += loss.item()
             avg_loss = running_loss / (i+1)
+
+            writer.add_scalar("loss", float(loss.item()), global_step)
+            writer.add_scalar("avg_loss", float(avg_loss), global_step)
+            writer.add_scalar("learning_rate", float(current_lr), global_step)
+            writer.add_scalar("grad_norm", float(grad_norm), global_step)
+
             # saving checkpoint if needed
             if global_step != 0 and global_step % hp.save_every_step == 0:
                 save_checkpoint(device, model, optimizer, global_step, checkpoint_dir, global_epoch)
@@ -190,6 +198,7 @@ if __name__=="__main__":
     checkpoint_dir = args["--checkpoint-dir"]
     checkpoint_path = args["--checkpoint"]
     data_root = args["<data-root>"]
+    log_event_path = args["--log-event-path"]
 
     # make dirs, load dataloader and set up device
     os.makedirs(checkpoint_dir, exist_ok=True)
@@ -206,6 +215,13 @@ if __name__=="__main__":
     data_loader = DataLoader(dataset, collate_fn=collate_fn, shuffle=True, num_workers=int(hp.num_workers), batch_size=hp.batch_size)
     device = torch.device("cuda" if use_cuda else "cpu")
     print("using device:{}".format(device))
+
+    if log_event_path is None:
+        log_event_path = "log/log_" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    else:
+        log_event_path += "/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    print("Tensorboard event path: {}".format(log_event_path))
+    writer = SummaryWriter(log_dir=log_event_path)
 
     # build model, create optimizer
     model = build_model().to(device)
