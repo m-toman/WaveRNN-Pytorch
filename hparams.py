@@ -60,7 +60,7 @@ hparams = tf.contrib.training.HParams(
     save_every_step = 10000,
     evaluate_every_step = 5000,
     # seq_len_factor can be adjusted to increase training sequence length (will increase GPU usage)
-    seq_len_factor = 5,
+    seq_len_factor = 9,
 
     grad_norm = 10,
     #learning rate parameters

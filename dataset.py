@@ -32,7 +32,7 @@ def raw_collate(batch) :
     """collate function used for raw wav forms, such as using beta/guassian/mixture of logistic
     """
     
-    pad = 2
+    pad = 0
     mel_win = hp.seq_len // hp.hop_size + 2 * pad
     max_offsets = [x[0].shape[-1] - (mel_win + 2 * pad) for x in batch]
     mel_offsets = [np.random.randint(0, offset) for offset in max_offsets]
@@ -62,20 +62,24 @@ def discrete_collate(batch) :
     """collate function used for discrete wav output, such as 9-bit, mulaw-discrete, etc.
     """
     
-    pad = 2
-    mel_win = hp.seq_len // hp.hop_size + 2 * pad
-    max_offsets = [x[0].shape[-1] - (mel_win + 2 * pad) for x in batch]
+    pad = 0
+    mel_win = hp.seq_len_factor + 2 * pad
+    max_offsets = [x[0].shape[-1] - (mel_win + 2 * pad + 4) for x in batch] # TODO: I don't understand why I need to pad with 4 here
     mel_offsets = [np.random.randint(0, offset) for offset in max_offsets]
     sig_offsets = [(offset + pad) * hp.hop_size for offset in mel_offsets]
     
     mels = [x[0][:, mel_offsets[i]:mel_offsets[i] + mel_win] \
             for i, x in enumerate(batch)]
     
-    coarse = [x[1][sig_offsets[i]:sig_offsets[i] + hp.seq_len + 1] \
+    coarse = [x[1][sig_offsets[i]:sig_offsets[i] + hp.seq_len_factor*hp.hop_size + 1] \
               for i, x in enumerate(batch)]
     
     mels = np.stack(mels).astype(np.float32)
-    coarse = np.stack(coarse).astype(np.int64)
+    try:
+        coarse = np.stack(coarse).astype(np.int64)
+    except:
+        print([c.shape for c in coarse])
+        pass
     
     mels = torch.FloatTensor(mels)
     coarse = torch.LongTensor(coarse)
