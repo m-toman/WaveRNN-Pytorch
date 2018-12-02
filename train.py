@@ -140,16 +140,17 @@ def train_loop(device, model, data_loader, optimizer, checkpoint_dir):
     else:
         raise ValueError("input_type:{} not supported".format(hp.input_type))
 
-    
 
     global global_step, global_epoch, global_test_step
+
+    bootstrap_len = hp.hop_size * hp.resnet_pad # TODO: this should be largest padding we are using in all the networks
     while global_epoch < hp.nepochs:
         running_loss = 0
         for i, (x, m, y) in enumerate(tqdm(data_loader)):
             x, m, y = x.to(device), m.to(device), y.to(device)
             y_hat = model(x, m)
             y = y.unsqueeze(-1)
-            loss = criterion(y_hat, y)
+            loss = criterion(y_hat[:, bootstrap_len:-bootstrap_len, :], y[:, bootstrap_len:-bootstrap_len, :])
             # calculate learning rate and update learning rate
             if hp.fix_learning_rate:
                 current_lr = hp.fix_learning_rate

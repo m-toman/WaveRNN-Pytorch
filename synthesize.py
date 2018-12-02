@@ -61,3 +61,11 @@ if __name__ == "__main__":
     output = model.batch_generate(mel)
     librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'.wav'), output, hparams.sample_rate)
     print('done')
+
+import pylab as pl
+
+n = output.shape[1]
+i=26
+pl.clf()
+pl.plot(output0[(i*n):(n*(i+2))])
+pl.plot(np.hstack([output[i,:],output[i+1,:]]))
