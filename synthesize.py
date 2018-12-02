@@ -18,6 +18,7 @@ import glob
 from docopt import docopt
 from model import *
 from hparams import hparams
+from utils import num_params_count
 
 if __name__ == "__main__":
     args = docopt(__doc__)
@@ -49,6 +50,14 @@ if __name__ == "__main__":
     checkpoint = torch.load(latest_checkpoint)
     model.load_state_dict(checkpoint["state_dict"])
 
+    print("I: %.3f million"%(num_params_count(model.I)))
+    print("Upsample: %.3f million"%(num_params_count(model.upsample)))
+    print("rnn1: %.3f million"%(num_params_count(model.rnn1)))
+    print("rnn2: %.3f million"%(num_params_count(model.rnn2)))
+    print("fc1: %.3f million"%(num_params_count(model.fc1)))
+    print("fc2: %.3f million"%(num_params_count(model.fc2)))
+    print("fc3: %.3f million"%(num_params_count(model.fc3)))
+
     #mel = np.pad(mel,(24000,0),'constant')
     n_mels = mel.shape[1]
     n_mels = hparams.batch_size_gen * (n_mels // hparams.batch_size_gen)
@@ -59,6 +68,8 @@ if __name__ == "__main__":
 
     mel = mel.reshape([mel.shape[0], hparams.batch_size_gen, -1]).swapaxes(0,1)
     output = model.batch_generate(mel)
+    bootstrap_len = hp.hop_size * hp.resnet_pad
+    output=output[:,bootstrap_len:].reshape(-1)
     librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'.wav'), output, hparams.sample_rate)
     print('done')
 

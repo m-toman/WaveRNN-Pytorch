@@ -34,6 +34,7 @@ from loss_function import nll_loss
 from dataset import raw_collate, discrete_collate, AudiobookDataset
 from hparams import hparams as hp
 from lrschedule import noam_learning_rate_decay, step_learning_rate_decay
+from utils import num_params_count
 
 global_step = 0
 global_epoch = 0
@@ -226,6 +227,16 @@ if __name__=="__main__":
 
     # build model, create optimizer
     model = build_model().to(device)
+    print("Parameter Count:")
+    print("I: %.3f million"%(num_params_count(model.I)))
+    print("Upsample: %.3f million"%(num_params_count(model.upsample)))
+    print("rnn1: %.3f million"%(num_params_count(model.rnn1)))
+    print("rnn2: %.3f million"%(num_params_count(model.rnn2)))
+    print("fc1: %.3f million"%(num_params_count(model.fc1)))
+    print("fc2: %.3f million"%(num_params_count(model.fc2)))
+    print("fc3: %.3f million"%(num_params_count(model.fc3)))
+
+
     optimizer = optim.Adam(model.parameters(),
                            lr=hp.initial_learning_rate, betas=(
         hp.adam_beta1, hp.adam_beta2),
