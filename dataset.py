@@ -31,12 +31,11 @@ class AudiobookDataset(Dataset):
 def raw_collate(batch) :
     """collate function used for raw wav forms, such as using beta/guassian/mixture of logistic
     """
-    
-    pad = 0
-    mel_win = hp.seq_len // hp.hop_size + 2 * pad
-    max_offsets = [x[0].shape[-1] - (mel_win + 2 * pad) for x in batch]
+
+    mel_win = hp.seq_len // hp.hop_size
+    max_offsets = [x[0].shape[-1] - (mel_win + 4) for x in batch] # TODO: I don't understand why I need to pad with 4 here
     mel_offsets = [np.random.randint(0, offset) for offset in max_offsets]
-    sig_offsets = [(offset + pad) * hp.hop_size for offset in mel_offsets]
+    sig_offsets = [offset * hp.hop_size for offset in mel_offsets]
     
     mels = [x[0][:, mel_offsets[i]:mel_offsets[i] + mel_win] \
             for i, x in enumerate(batch)]
@@ -61,12 +60,11 @@ def raw_collate(batch) :
 def discrete_collate(batch) :
     """collate function used for discrete wav output, such as 9-bit, mulaw-discrete, etc.
     """
-    
-    pad = 0
-    mel_win = hp.seq_len_factor + 2 * pad
-    max_offsets = [x[0].shape[-1] - (mel_win + 2 * pad + 4) for x in batch] # TODO: I don't understand why I need to pad with 4 here
+
+    mel_win = hp.seq_len_factor
+    max_offsets = [x[0].shape[-1] - (mel_win + 4) for x in batch] # TODO: I don't understand why I need to pad with 4 here
     mel_offsets = [np.random.randint(0, offset) for offset in max_offsets]
-    sig_offsets = [(offset + pad) * hp.hop_size for offset in mel_offsets]
+    sig_offsets = [offset * hp.hop_size for offset in mel_offsets]
     
     mels = [x[0][:, mel_offsets[i]:mel_offsets[i] + mel_win] \
             for i, x in enumerate(batch)]

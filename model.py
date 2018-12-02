@@ -29,7 +29,8 @@ class ResBlock(nn.Module) :
 class MelResNet(nn.Module) :
     def __init__(self, res_blocks, in_dims, compute_dims, res_out_dims) :
         super().__init__()
-        self.conv_in = nn.Conv1d(in_dims, compute_dims, kernel_size=3, padding=1, bias=False)
+        assert hp.resnet_pad == (hp.resnet_kernel-1)//2 #padding has to match kernel overhang
+        self.conv_in = nn.Conv1d(in_dims, compute_dims, kernel_size=hp.resnet_kernel, padding=hp.resnet_pad, bias=False)
         self.batch_norm = nn.BatchNorm1d(compute_dims)
         self.layers = nn.ModuleList()
         for i in range(res_blocks) :
@@ -48,9 +49,9 @@ class MelResNet(nn.Module) :
 
 class UpsampleNetwork(nn.Module) :
     def __init__(self, feat_dims, upsample_scales, compute_dims, 
-                 res_blocks, res_out_dims, pad):
+                 res_blocks, res_out_dims):
         super().__init__()
-        total_scale = np.cumproduct(upsample_scales)[-1]
+        total_scale = hp.hop_size
 
         self.resnet = MelResNet(res_blocks, feat_dims, compute_dims, res_out_dims)
         self.resnet_stretch = nn.Upsample(scale_factor=total_scale, mode='linear', align_corners=False)
@@ -67,7 +68,7 @@ class UpsampleNetwork(nn.Module) :
 
 
 class Model(nn.Module) :
-    def __init__(self, rnn_dims, fc_dims, bits, pad, upsample_factors,
+    def __init__(self, rnn_dims, fc_dims, bits, upsample_factors,
                  feat_dims, compute_dims, res_out_dims, res_blocks):
         super().__init__()
         if hp.input_type == 'raw':
@@ -84,7 +85,7 @@ class Model(nn.Module) :
         self.rnn_dims = rnn_dims
         self.aux_dims = res_out_dims // 4
         self.upsample = UpsampleNetwork(feat_dims, upsample_factors, compute_dims, 
-                                        res_blocks, res_out_dims, pad)
+                                        res_blocks, res_out_dims)
         self.I = nn.Linear(feat_dims + self.aux_dims + 1, rnn_dims)
         self.rnn1 = nn.GRU(rnn_dims, rnn_dims, batch_first=True)
         self.rnn2 = nn.GRU(rnn_dims + self.aux_dims, rnn_dims, batch_first=True)
@@ -274,7 +275,7 @@ class Model(nn.Module) :
         # output is a batch of wav segments of shape [batch_size x seq_len]
         # will need to merge into one wav of size [batch_size * seq_len]
         assert output.shape[1] == b_size
-        output = (output.swapaxes(1,0)).reshape(-1)
+        output = (output.swapaxes(1,0))
         return output
     
     def get_gru_cell(self, gru) :
@@ -301,7 +302,7 @@ def build_model():
     else:
         raise ValueError('input_type provided not supported')
     model = Model(hp.rnn_dims, hp.fc_dims, hp.bits,
-        hp.pad, hp.upsample_factors, hp.num_mels,
+        hp.upsample_factors, hp.num_mels,
         hp.compute_dims, hp.res_out_dims, hp.res_blocks)
 
     return model 

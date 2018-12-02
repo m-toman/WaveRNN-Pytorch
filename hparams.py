@@ -38,19 +38,22 @@ hparams = tf.contrib.training.HParams(
     rescaling = False,
     rescaling_max = 0.999,
     allow_clipping_in_normalization = True,
+    resnet_kernel = 3,
+    resnet_pad = 1,
     #----------------
     #
     #----------------
     # model parameters
     rnn_dims = 512,
     fc_dims = 512,
-    pad = 2,
+
     # note upsample factors must multiply out to be equal to hop_size, so adjust
     # if necessary (i.e 4 x 4 x 16 = 256)
     upsample_factors = (4, 8, 8),
     compute_dims = 128,
     res_out_dims = 128,
     res_blocks = 10,
+
     #----------------
     #
     #----------------
@@ -60,7 +63,7 @@ hparams = tf.contrib.training.HParams(
     save_every_step = 10000,
     evaluate_every_step = 5000,
     # seq_len_factor can be adjusted to increase training sequence length (will increase GPU usage)
-    seq_len_factor = 9,
+    seq_len_factor = 6,
 
     grad_norm = 10,
     #learning rate parameters
