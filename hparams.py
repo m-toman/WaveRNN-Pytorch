@@ -78,7 +78,7 @@ hparams = tf.contrib.training.HParams(
     adam_beta2=0.999,
     adam_eps=1e-8,
     amsgrad=False,
-    weight_decay = 0.0,
+    weight_decay=1e-4,
     fix_learning_rate = None, # modify if one wants to use a fixed learning rate, else set to None to use noam learning rate
     #-----------------
     batch_size_gen = 32,

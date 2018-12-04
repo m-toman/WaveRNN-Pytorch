@@ -206,6 +206,32 @@ class Model(nn.Module) :
         return output
 
 
+    @staticmethod
+    def _round_up(num, divisor, bsize):
+        return num + divisor - (num%divisor)
+
+    def _batch_mels(self, mel_in):
+        pad = 2
+        mel = np.pad(mel_in, [(0, 0), (pad, 0)], 'constant', constant_values=0)
+
+        n_hops = mel.shape[1]
+        n_frames = n_hops // hp.batch_size_gen
+
+        idxs=[range(k, k+n_frames+pad) for k in range(0, n_hops, n_frames)]
+
+        n_pad = idxs[-1][-1]+1 - n_hops
+        mel_padded = np.pad(mel, [(0, 0), (0, n_pad)], 'constant', constant_values=0)
+        mel_batched = mel_padded[:,idxs].swapaxes(0, 1)
+        pad_length = n_pad*hp.hop_size      # ToDo: remove dependency on dsp
+        return mel_batched, pad_length
+
+    @staticmethod
+    def _unbatch_sound(x, pad_length):
+        pad = 2
+        x_trimmed=x[pad*hp.hop_size:]
+        y = x_trimmed.transpose().flatten()[:-pad_length]
+        return y
+
     def batch_generate(self, mels) :
         """mel should be of shape [batch_size x 80 x mel_length]
         """
@@ -213,6 +239,8 @@ class Model(nn.Module) :
         output = []
         rnn1 = self.get_gru_cell(self.rnn1)
         rnn2 = self.get_gru_cell(self.rnn2)
+        mels, pad_length = self._batch_mels(mels)
+
         b_size = mels.shape[0]
         assert len(mels.shape) == 3, "mels should have shape [batch_size x 80 x mel_length]"
         
@@ -271,11 +299,8 @@ class Model(nn.Module) :
                 output.append(sample.view(-1))
                 x = sample.view(b_size,1)
         output = torch.stack(output).cpu().numpy()
+        output = self._unbatch_sound(output, hp.resnet_pad)
         self.train()
-        # output is a batch of wav segments of shape [batch_size x seq_len]
-        # will need to merge into one wav of size [batch_size * seq_len]
-        assert output.shape[1] == b_size
-        output = (output.swapaxes(1,0))
         return output
     
     def get_gru_cell(self, gru) :

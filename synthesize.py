@@ -59,24 +59,26 @@ if __name__ == "__main__":
     print("fc3: %.3f million"%(num_params_count(model.fc3)))
 
     #mel = np.pad(mel,(24000,0),'constant')
-    n_mels = mel.shape[1]
-    n_mels = hparams.batch_size_gen * (n_mels // hparams.batch_size_gen)
-    mel = mel[:, 0:n_mels]
-    mel0 = mel.copy()
-    output0 = model.generate(mel0)
-    librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'_orig.wav'), output0, hparams.sample_rate)
+    # n_mels = mel.shape[1]
+    # n_mels = hparams.batch_size_gen * (n_mels // hparams.batch_size_gen)
+    # mel = mel[:, 0:n_mels]
 
-    mel = mel.reshape([mel.shape[0], hparams.batch_size_gen, -1]).swapaxes(0,1)
+
+    # mel0 = mel.copy()
+    # output0 = model.generate(mel0)
+    # librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'_orig.wav'), output0, hparams.sample_rate)
+
+    #mel = mel.reshape([mel.shape[0], hparams.batch_size_gen, -1]).swapaxes(0,1)
     output = model.batch_generate(mel)
-    bootstrap_len = hp.hop_size * hp.resnet_pad
-    output=output[:,bootstrap_len:].reshape(-1)
+    #bootstrap_len = hp.hop_size * hp.resnet_pad
+    #output=output[:,bootstrap_len:].reshape(-1)
     librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'.wav'), output, hparams.sample_rate)
     print('done')
 
-import pylab as pl
-
-n = output.shape[1]
-i=26
-pl.clf()
-pl.plot(output0[(i*n):(n*(i+2))])
-pl.plot(np.hstack([output[i,:],output[i+1,:]]))
+# import pylab as pl
+#
+# n = output.shape[1]
+# i=26
+# pl.clf()
+# pl.plot(output0[(i*n):(n*(i+2))])
+# pl.plot(np.hstack([output[i,:],output[i+1,:]]))
