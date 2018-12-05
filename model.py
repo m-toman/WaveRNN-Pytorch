@@ -210,27 +210,56 @@ class Model(nn.Module) :
     def _round_up(num, divisor, bsize):
         return num + divisor - (num%divisor)
 
+
+    def glueback(self, wav_frags):
+        from itertools import product
+        srch_pixels=9
+        res=wav_frags[:, 0]
+        for i in range(wav_frags.shape[1] - 1):
+            left_wav = wav_frags[-(srch_pixels + 1):, i]
+            dif_left= np.diff(left_wav)
+            left_wav=left_wav[1:]
+            v1 = np.vstack([left_wav, dif_left])
+
+            right_wav = wav_frags[0:(srch_pixels + 1), i + 1]
+            dif_right=np.diff(right_wav)
+            right_wav=right_wav[:-1]
+            v2 = np.vstack([right_wav, dif_right])
+
+            #compare points pairwise. glue points that have the best match
+            d=[]
+            pairs = list(product(range(srch_pixels), range(srch_pixels)))
+            for i1, i2 in pairs:
+                d.append(np.sum((v1[:,i1] - v2[:,i2])**2)) # TODO: not the best way. We should match derivative direction too
+
+            best_match=np.argmin(d)
+            (d1, d2) = pairs[best_match]
+            print(d1,d2)
+            #glue together fragments
+            res=np.hstack([res[:-(d1+1)], wav_frags[d2:, i + 1]])
+        return res
+
     def _batch_mels(self, mel_in):
-        pad = 2
-        mel = np.pad(mel_in, [(0, 0), (pad, 0)], 'constant', constant_values=0)
 
-        n_hops = mel.shape[1]
-        n_frames = n_hops // hp.batch_size_gen
+        n_frames_full = mel_in.shape[1]
+        n_frames_batch = n_frames_full // hp.batch_size_gen
 
-        idxs=[range(k, k+n_frames+pad) for k in range(0, n_hops, n_frames)]
+        n_overlap = hp.hop_size*2
+        mel_in = torch.nn.functional.pad(mel_in, (0, 0, 0, n_overlap, 0, 0))
 
-        n_pad = idxs[-1][-1]+1 - n_hops
-        mel_padded = np.pad(mel, [(0, 0), (0, n_pad)], 'constant', constant_values=0)
-        mel_batched = mel_padded[:,idxs].swapaxes(0, 1)
-        pad_length = n_pad*hp.hop_size      # ToDo: remove dependency on dsp
-        return mel_batched, pad_length
+        idxs=[range(k*n_frames_batch, (k+1)*n_frames_batch+n_overlap) for k in range(0, hp.batch_size_gen)]
 
-    @staticmethod
-    def _unbatch_sound(x, pad_length):
-        pad = 2
-        x_trimmed=x[pad*hp.hop_size:]
-        y = x_trimmed.transpose().flatten()[:-pad_length]
-        return y
+        # n_pad = idxs[-1][-1]+1 - n_hops
+        # mel_padded = np.pad(mel, [(0, 0), (0, n_pad)], 'constant', constant_values=0)
+        mel_batched = mel_in.squeeze(0)[idxs,:] #.permute(0, 2, 1)
+        return mel_batched, n_overlap
+
+
+    def _unbatch_sound(self, x, pad_length):
+        x_trimmed=x[:-pad_length, :]
+        y = self.glueback(x_trimmed)
+        y = x.transpose().flatten()
+        return y, x
 
     def batch_generate(self, mels) :
         """mel should be of shape [batch_size x 80 x mel_length]
@@ -239,19 +268,21 @@ class Model(nn.Module) :
         output = []
         rnn1 = self.get_gru_cell(self.rnn1)
         rnn2 = self.get_gru_cell(self.rnn2)
-        mels, pad_length = self._batch_mels(mels)
 
-        b_size = mels.shape[0]
-        assert len(mels.shape) == 3, "mels should have shape [batch_size x 80 x mel_length]"
-        
         with torch.no_grad() :
+
+            mels = torch.FloatTensor(mels).cuda()
+            mels = mels.unsqueeze(0)
+            mels, aux = self.upsample(mels)
+
+            mels, pad_length = self._batch_mels(mels)
+            aux, _ = self._batch_mels(aux)
+            b_size = mels.shape[0]
+
             x = torch.zeros(b_size, 1).cuda()
             h1 = torch.zeros(b_size, self.rnn_dims).cuda()
             h2 = torch.zeros(b_size, self.rnn_dims).cuda()
-            
-            mels = torch.FloatTensor(mels).cuda()
-            mels, aux = self.upsample(mels)
-            
+
             aux_idx = [self.aux_dims * i for i in range(5)]
             a1 = aux[:, :, aux_idx[0]:aux_idx[1]]
             a2 = aux[:, :, aux_idx[1]:aux_idx[2]]
@@ -299,9 +330,9 @@ class Model(nn.Module) :
                 output.append(sample.view(-1))
                 x = sample.view(b_size,1)
         output = torch.stack(output).cpu().numpy()
-        output = self._unbatch_sound(output, hp.resnet_pad)
+        output, output1 = self._unbatch_sound(output, pad_length)
         self.train()
-        return output
+        return output, output1
     
     def get_gru_cell(self, gru) :
         gru_cell = nn.GRUCell(gru.input_size, gru.hidden_size)

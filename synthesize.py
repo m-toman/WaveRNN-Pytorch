@@ -19,6 +19,7 @@ from docopt import docopt
 from model import *
 from hparams import hparams
 from utils import num_params_count
+import pickle
 
 if __name__ == "__main__":
     args = docopt(__doc__)
@@ -69,11 +70,20 @@ if __name__ == "__main__":
     # librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'_orig.wav'), output0, hparams.sample_rate)
 
     #mel = mel.reshape([mel.shape[0], hparams.batch_size_gen, -1]).swapaxes(0,1)
-    output = model.batch_generate(mel)
+    output, out1 = model.batch_generate(mel)
     #bootstrap_len = hp.hop_size * hp.resnet_pad
     #output=output[:,bootstrap_len:].reshape(-1)
     librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'.wav'), output, hparams.sample_rate)
+    with open(os.path.join(output_path, os.path.basename(mel_file_name)+'.pkl'), 'wb') as f:
+        pickle.dump((output0,output, out1), f)
     print('done')
+
+
+
+#%%
+
+#librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'_new.wav'), res, hparams.sample_rate)
+
 
 # import pylab as pl
 #
