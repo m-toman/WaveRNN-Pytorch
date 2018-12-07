@@ -227,7 +227,7 @@ class Model(nn.Module) :
 
     def glueback(self, wav):
         from itertools import product
-        srch_frames = 30
+        srch_frames = hp.hop_size #how far to search for matching phase
 
         wav = wav[(self.n_overlap-srch_frames):, :]
 
@@ -238,10 +238,10 @@ class Model(nn.Module) :
 
             dif=[]
             for k in range(srch_frames):
-                dif.append(np.sum((left_wav[(-k-10-1):-k-1]-right_wav[k:(k+10)])**2))
+                dif.append(np.sum((left_wav[(-k-20-1):-k-1]-right_wav[k:(k+20)])**2))
             kmin = np.argmin(dif)
 
-            left_wav = np.hstack([left_wav[:-kmin-1], right_wav[k+srch_frames:]])
+            left_wav = np.hstack([left_wav[:-kmin-1], right_wav[kmin+20:]])
 
         return left_wav
 
