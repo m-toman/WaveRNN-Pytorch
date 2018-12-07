@@ -40,6 +40,8 @@ hparams = tf.contrib.training.HParams(
     allow_clipping_in_normalization = True,
     resnet_kernel = 3,
     resnet_pad = 1,
+    pad_gen = 2,
+
     #----------------
     #
     #----------------

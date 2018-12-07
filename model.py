@@ -211,54 +211,44 @@ class Model(nn.Module) :
         return num + divisor - (num%divisor)
 
 
-    def glueback(self, wav_frags):
-        from itertools import product
-        srch_pixels=9
-        res=wav_frags[:, 0]
-        for i in range(wav_frags.shape[1] - 1):
-            left_wav = wav_frags[-(srch_pixels + 1):, i]
-            dif_left= np.diff(left_wav)
-            left_wav=left_wav[1:]
-            v1 = np.vstack([left_wav, dif_left])
-
-            right_wav = wav_frags[0:(srch_pixels + 1), i + 1]
-            dif_right=np.diff(right_wav)
-            right_wav=right_wav[:-1]
-            v2 = np.vstack([right_wav, dif_right])
-
-            #compare points pairwise. glue points that have the best match
-            d=[]
-            pairs = list(product(range(srch_pixels), range(srch_pixels)))
-            for i1, i2 in pairs:
-                d.append(np.sum((v1[:,i1] - v2[:,i2])**2)) # TODO: not the best way. We should match derivative direction too
-
-            best_match=np.argmin(d)
-            (d1, d2) = pairs[best_match]
-            print(d1,d2)
-            #glue together fragments
-            res=np.hstack([res[:-(d1+1)], wav_frags[d2:, i + 1]])
-        return res
 
     def _batch_mels(self, mel_in):
 
         n_frames_full = mel_in.shape[1]
         n_frames_batch = n_frames_full // hp.batch_size_gen
+        self.n_overlap = hp.hop_size*hp.pad_gen
 
-        n_overlap = hp.hop_size*2
-        mel_in = torch.nn.functional.pad(mel_in, (0, 0, 0, n_overlap, 0, 0))
+        mel_in = torch.nn.functional.pad(mel_in, (0, 0, self.n_overlap, self.n_overlap, 0, 0))
+        idxs=[range(k*n_frames_batch, (k+1)*n_frames_batch+self.n_overlap) for k in range(0, hp.batch_size_gen)]
 
-        idxs=[range(k*n_frames_batch, (k+1)*n_frames_batch+n_overlap) for k in range(0, hp.batch_size_gen)]
-
-        # n_pad = idxs[-1][-1]+1 - n_hops
-        # mel_padded = np.pad(mel, [(0, 0), (0, n_pad)], 'constant', constant_values=0)
         mel_batched = mel_in.squeeze(0)[idxs,:] #.permute(0, 2, 1)
-        return mel_batched, n_overlap
+        return mel_batched, self.n_overlap
 
+
+    def glueback(self, wav):
+        from itertools import product
+        srch_frames = 30
+
+        wav = wav[(self.n_overlap-srch_frames):, :]
+
+        left_wav = wav[:, 0]
+        for i in range(wav.shape[1] - 1):
+
+            right_wav = wav[:, i+1]
+
+            dif=[]
+            for k in range(srch_frames):
+                dif.append(np.sum((left_wav[(-k-10-1):-k-1]-right_wav[k:(k+10)])**2))
+            kmin = np.argmin(dif)
+
+            left_wav = np.hstack([left_wav[:-kmin-1], right_wav[k+srch_frames:]])
+
+        return left_wav
 
     def _unbatch_sound(self, x, pad_length):
-        x_trimmed=x[:-pad_length, :]
-        y = self.glueback(x_trimmed)
-        y = x.transpose().flatten()
+
+        y = self.glueback(x)
+        #y = x.transpose().flatten()
         return y, x
 
     def batch_generate(self, mels) :
@@ -269,7 +259,7 @@ class Model(nn.Module) :
         rnn1 = self.get_gru_cell(self.rnn1)
         rnn2 = self.get_gru_cell(self.rnn2)
 
-        with torch.no_grad() :
+        with torch.no_grad():
 
             mels = torch.FloatTensor(mels).cuda()
             mels = mels.unsqueeze(0)
