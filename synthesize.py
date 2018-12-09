@@ -65,9 +65,9 @@ if __name__ == "__main__":
     # mel = mel[:, 0:n_mels]
 
 
-    # mel0 = mel.copy()
-    # output0 = model.generate(mel0)
-    # librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'_orig.wav'), output0, hparams.sample_rate)
+    mel0 = mel.copy()
+    output0 = model.generate(mel0, batched=True)
+    librosa.output.write_wav(os.path.join(output_path, os.path.basename(mel_file_name)+'_orig.wav'), output0, hparams.sample_rate)
 
     #mel = mel.reshape([mel.shape[0], hparams.batch_size_gen, -1]).swapaxes(0,1)
     output, out1 = model.batch_generate(mel)

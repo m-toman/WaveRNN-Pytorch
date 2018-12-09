@@ -41,6 +41,7 @@ global_epoch = 0
 global_test_step = 0
 use_cuda = torch.cuda.is_available()
 
+
 def save_checkpoint(device, model, optimizer, step, checkpoint_dir, epoch):
     checkpoint_path = join(
         checkpoint_dir, "checkpoint_step{:09d}.pth".format(step))
