@@ -157,72 +157,267 @@ class Model(nn.Module) :
         mels, aux = self.upsample(mels)
         return mels, aux
     
-    def generate(self, mels) :
+    # def generate(self, mels) :
+    #     self.eval()
+    #     output = []
+    #     rnn1 = self.get_gru_cell(self.rnn1)
+    #     rnn2 = self.get_gru_cell(self.rnn2)
+    #
+    #     with torch.no_grad() :
+    #         x = torch.zeros(1, 1).cuda()
+    #         h1 = torch.zeros(1, self.rnn_dims).cuda()
+    #         h2 = torch.zeros(1, self.rnn_dims).cuda()
+    #
+    #         mels = torch.FloatTensor(mels).cuda().unsqueeze(0)
+    #         mels, aux = self.upsample(mels)
+    #
+    #         aux_idx = [self.aux_dims * i for i in range(5)]
+    #         a1 = aux[:, :, aux_idx[0]:aux_idx[1]]
+    #         a2 = aux[:, :, aux_idx[1]:aux_idx[2]]
+    #         a3 = aux[:, :, aux_idx[2]:aux_idx[3]]
+    #         a4 = aux[:, :, aux_idx[3]:aux_idx[4]]
+    #
+    #         seq_len = mels.size(1)
+    #
+    #         for i in tqdm(range(seq_len)) :
+    #
+    #             m_t = mels[:, i, :]
+    #             a1_t = a1[:, i, :]
+    #             a2_t = a2[:, i, :]
+    #             a3_t = a3[:, i, :]
+    #             a4_t = a4[:, i, :]
+    #
+    #             x = torch.cat([x, m_t, a1_t], dim=1)
+    #             x = self.I(x)
+    #             h1 = rnn1(x, h1)
+    #
+    #             x = x + h1
+    #             inp = torch.cat([x, a2_t], dim=1)
+    #             h2 = rnn2(inp, h2)
+    #
+    #             x = x + h2
+    #             x = torch.cat([x, a3_t], dim=1)
+    #             x = F.relu(self.fc1(x))
+    #
+    #             x = torch.cat([x, a4_t], dim=1)
+    #             x = F.relu(self.fc2(x))
+    #             x = self.fc3(x)
+    #             if hp.input_type == 'raw':
+    #                 if hp.distribution == 'beta':
+    #                     sample = sample_from_beta_dist(x.unsqueeze(0))
+    #                 elif hp.distribution == 'gaussian':
+    #                     sample = sample_from_gaussian(x.unsqueeze(0))
+    #             elif hp.input_type == 'mixture':
+    #                 sample = sample_from_discretized_mix_logistic(x.unsqueeze(-1),hp.log_scale_min)
+    #             elif hp.input_type == 'bits':
+    #                 posterior = F.softmax(x, dim=1).view(-1)
+    #                 distrib = torch.distributions.Categorical(posterior)
+    #                 sample = 2 * distrib.sample().float() / (self.n_classes - 1.) - 1.
+    #             elif hp.input_type == 'mulaw':
+    #                 posterior = F.softmax(x, dim=1).view(-1)
+    #                 distrib = torch.distributions.Categorical(posterior)
+    #                 sample = inv_mulaw_quantize(distrib.sample(), hp.mulaw_quantize_channels, True)
+    #             output.append(sample.view(-1))
+    #             x = torch.FloatTensor([[sample]]).cuda()
+    #     output = torch.stack(output).cpu().numpy()
+    #     self.train()
+    #     return output
+
+
+    def pad_tensor(self, x, pad, side='both') :
+        # NB - this is just a quick method i need right now
+        # i.e., it won't generalise to other shapes/dims
+        b, t, c = x.size()
+        total = t + 2 * pad if side == 'both' else t + pad
+        padded = torch.zeros(b, total, c).cuda()
+        if side == 'before' or side == 'both' :
+            padded[:, pad:pad+t, :] = x
+        elif side == 'after':
+            padded[:, :t, :] = x
+        return padded
+
+
+    def fold_with_overlap(self, x, target, overlap) :
+
+        ''' Fold the tensor with overlap for quick batched inference.
+            Overlap will be used for crossfading in xfade_and_unfold()
+
+        Args:
+            x (tensor)    : Upsampled conditioning features.
+                            shape=(1, timesteps, features)
+            target (int)  : Target timesteps for each index of batch
+            overlap (int) : Timesteps for both xfade and rnn warmup
+
+        Return:
+            (tensor) : shape=(num_folds, target + 2 * overlap, features)
+
+        Details:
+            x = [[h1, h2, ... hn]]
+
+            Where each h is a vector of conditioning features
+
+            Eg: target=2, overlap=1 with x.size(1)=10
+
+            folded = [[h1, h2, h3, h4],
+                      [h4, h5, h6, h7],
+                      [h7, h8, h9, h10]]
+        '''
+
+        _, total_len, features = x.size()
+
+        # Calculate variables needed
+        num_folds = (total_len - overlap) // (target + overlap)
+        extended_len = num_folds * (overlap + target) + overlap
+        remaining = total_len - extended_len
+
+        # Pad if some time steps poking out
+        if remaining != 0 :
+            num_folds += 1
+            padding = target + 2 * overlap - remaining
+            x = self.pad_tensor(x, padding, side='after')
+
+        folded = torch.zeros(num_folds, target + 2 * overlap, features).cuda()
+
+        # Get the values for the folded tensor
+        for i in range(num_folds) :
+            start = i * (target + overlap)
+            end = start + target + 2 * overlap
+            folded[i] = x[:, start:end, :]
+
+        return folded
+
+
+    def xfade_and_unfold(self, y, target, overlap) :
+
+        ''' Applies a crossfade and unfolds into a 1d array.
+
+        Args:
+            y (ndarry)    : Batched sequences of audio samples
+                            shape=(num_folds, target + 2 * overlap)
+                            dtype=np.float64
+            overlap (int) : Timesteps for both xfade and rnn warmup
+
+        Return:
+            (ndarry) : audio samples in a 1d array
+                       shape=(total_len)
+                       dtype=np.float64
+
+        Details:
+            y = [[seq1],
+                 [seq2],
+                 [seq3]]
+
+            Apply a gain envelope at both ends of the sequences
+
+            y = [[seq1_in, seq1_target, seq1_out],
+                 [seq2_in, seq2_target, seq2_out],
+                 [seq3_in, seq3_target, seq3_out]]
+
+            Stagger and add up the groups of samples:
+
+            [seq1_in, seq1_target, (seq1_out + seq2_in), seq2_target, ...]
+
+        '''
+
+        num_folds, length = y.shape
+        target = length - 2 * overlap
+        total_len = num_folds * (target + overlap) + overlap
+
+        # Need some silence for the rnn warmup
+        silence_len = overlap // 2
+        fade_len = overlap - silence_len
+        silence = np.zeros((silence_len))
+
+        # Equal power crossfade
+        t = np.linspace(-1, 1, fade_len)
+        fade_in = np.sqrt(0.5 * (1 + t))
+        fade_out = np.sqrt(0.5 * (1 - t))
+
+        # Concat the silence to the fades
+        fade_in = np.concatenate([silence, fade_in])
+        fade_out = np.concatenate([fade_out, silence])
+
+        # Apply the gain to the overlap samples
+        y[:, :overlap] *= fade_in
+        y[:, -overlap:] *= fade_out
+
+        unfolded = np.zeros((total_len))
+
+        # Loop to add up all the samples
+        for i in range(num_folds ) :
+            start = i * (target + overlap)
+            end = start + target + 2 * overlap
+            unfolded[start:end] += y[i]
+
+        return unfolded
+
+    def generate(self, mels, target=11000, overlap=550, batched=True):
+
         self.eval()
         output = []
+
         rnn1 = self.get_gru_cell(self.rnn1)
         rnn2 = self.get_gru_cell(self.rnn2)
-        
-        with torch.no_grad() :
-            x = torch.zeros(1, 1).cuda()
-            h1 = torch.zeros(1, self.rnn_dims).cuda()
-            h2 = torch.zeros(1, self.rnn_dims).cuda()
-            
+
+        with torch.no_grad():
+
             mels = torch.FloatTensor(mels).cuda().unsqueeze(0)
-            mels, aux = self.upsample(mels)
-            
-            aux_idx = [self.aux_dims * i for i in range(5)]
-            a1 = aux[:, :, aux_idx[0]:aux_idx[1]]
-            a2 = aux[:, :, aux_idx[1]:aux_idx[2]]
-            a3 = aux[:, :, aux_idx[2]:aux_idx[3]]
-            a4 = aux[:, :, aux_idx[3]:aux_idx[4]]
-            
-            seq_len = mels.size(1)
-            
-            for i in tqdm(range(seq_len)) :
+            mels = self.pad_tensor(mels.transpose(1, 2), pad=hp.pad, side='both')
+            mels, aux = self.upsample(mels.transpose(1, 2))
+
+            if batched:
+                #target = mels.shape[1] // hp.batch_size_gen
+                mels = self.fold_with_overlap(mels, target, overlap)
+                aux = self.fold_with_overlap(aux, target, overlap)
+
+            b_size, seq_len, _ = mels.size()
+
+            h1 = torch.zeros(b_size, self.rnn_dims).cuda()
+            h2 = torch.zeros(b_size, self.rnn_dims).cuda()
+            x = torch.zeros(b_size, 1).cuda()
+
+            d = self.aux_dims
+            aux_split = [aux[:, :, d * i:d * (i + 1)] for i in range(4)]
+
+            for i in range(seq_len):
 
                 m_t = mels[:, i, :]
-                a1_t = a1[:, i, :]
-                a2_t = a2[:, i, :]
-                a3_t = a3[:, i, :]
-                a4_t = a4[:, i, :]
-                
+
+                a1_t, a2_t, a3_t, a4_t = \
+                    (a[:, i, :] for a in aux_split)
+
                 x = torch.cat([x, m_t, a1_t], dim=1)
                 x = self.I(x)
                 h1 = rnn1(x, h1)
-                
+
                 x = x + h1
                 inp = torch.cat([x, a2_t], dim=1)
                 h2 = rnn2(inp, h2)
-                
+
                 x = x + h2
                 x = torch.cat([x, a3_t], dim=1)
                 x = F.relu(self.fc1(x))
-                
+
                 x = torch.cat([x, a4_t], dim=1)
                 x = F.relu(self.fc2(x))
-                x = self.fc3(x)
-                if hp.input_type == 'raw':
-                    if hp.distribution == 'beta':
-                        sample = sample_from_beta_dist(x.unsqueeze(0))
-                    elif hp.distribution == 'gaussian':
-                        sample = sample_from_gaussian(x.unsqueeze(0))
-                elif hp.input_type == 'mixture':
-                    sample = sample_from_discretized_mix_logistic(x.unsqueeze(-1),hp.log_scale_min)
-                elif hp.input_type == 'bits':
-                    posterior = F.softmax(x, dim=1).view(-1)
-                    distrib = torch.distributions.Categorical(posterior)
-                    sample = 2 * distrib.sample().float() / (self.n_classes - 1.) - 1.
-                elif hp.input_type == 'mulaw':
-                    posterior = F.softmax(x, dim=1).view(-1)
-                    distrib = torch.distributions.Categorical(posterior)
-                    sample = inv_mulaw_quantize(distrib.sample(), hp.mulaw_quantize_channels, True)
-                output.append(sample.view(-1))
-                x = torch.FloatTensor([[sample]]).cuda()
-        output = torch.stack(output).cpu().numpy()
+
+                logits = self.fc3(x)
+                posterior = F.softmax(logits, dim=1)
+                distrib = torch.distributions.Categorical(posterior)
+                sample = 2 * distrib.sample().float() / (self.n_classes - 1.) - 1.
+                output.append(sample)
+                x = sample.unsqueeze(-1)
+
+        output = torch.stack(output).transpose(0, 1)
+        output = output.cpu().numpy()
+
+        if batched:
+            output = self.xfade_and_unfold(output, target, overlap)
+        else:
+            output = output[0]
+
         self.train()
         return output
-
 
     def batch_generate(self, mels) :
         """mel should be of shape [batch_size x 80 x mel_length]

@@ -1,10 +1,13 @@
 import numpy as np
 import torch
 
-def num_params(model) :
+def num_params_count(model):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     parameters = sum([np.prod(p.size()) for p in parameters]) / 1000000
-    print('Trainable Parameters: %.3f million' % parameters)
+    return parameters
+
+def num_params(model):
+    print('Trainable Parameters: %.3f million' % num_params_count(model))
 
 
 # for mulaw encoding and decoding in torch tensors, modified from: https://github.com/pytorch/audio/blob/master/torchaudio/transforms.py
