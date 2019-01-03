@@ -11,7 +11,11 @@ import lws
 
 
 def load_wav(path):
-    return librosa.load(path, sr=hparams.sample_rate)[0]
+    if path.endswith(".npy"):                                                                                                                         
+        return np.fromfile(path)                                                                                                                      
+    else:                                                                                                                                             
+        return librosa.load(path, sr=hparams.sample_rate)[0]
+
 
 def save_wav(wav, path):
     wav = wav * 32767 / max(0.01, np.max(np.abs(wav)))
