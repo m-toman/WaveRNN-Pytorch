@@ -183,14 +183,7 @@ def train_loop(device, model, data_loader, optimizer, checkpoint_dir):
         global_epoch += 1
 
 
-
-if __name__=="__main__":
-    args = docopt(__doc__)
-    #print("Command line args:\n", args)
-    checkpoint_dir = args["--checkpoint-dir"]
-    checkpoint_path = args["--checkpoint"]
-    data_root = args["<data-root>"]
-
+def main(data_root, checkpoint_dir, checkpoint_path):
     # make dirs, load dataloader and set up device
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(os.path.join(checkpoint_dir,'eval'), exist_ok=True)
@@ -240,6 +233,16 @@ if __name__=="__main__":
     finally:
         print("saving model....")
         save_checkpoint(device, model, optimizer, global_step, checkpoint_dir, global_epoch)
+
+
+
+if __name__=="__main__":
+    args = docopt(__doc__)
+    #print("Command line args:\n", args)
+    checkpoint_dir = args["--checkpoint-dir"]
+    checkpoint_path = args["--checkpoint"]
+    data_root = args["<data-root>"]
+    main(data_root, checkpoint_dir, checkpoint_path)
     
 
 def test_eval():
