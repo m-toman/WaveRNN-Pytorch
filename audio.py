@@ -11,9 +11,9 @@ import lws
 
 
 def load_wav(path):
-    if path.endswith(".npy"):                                                                                                                         
-        return np.fromfile(path)                                                                                                                      
-    else:                                                                                                                                             
+    if path.endswith(".npy"):
+        return np.load(path)
+    else:
         return librosa.load(path, sr=hparams.sample_rate)[0]
 
 
@@ -40,7 +40,8 @@ def spectrogram(y):
 
 def inv_spectrogram(spectrogram):
     '''Converts spectrogram to waveform using librosa'''
-    S = _db_to_amp(_denormalize(spectrogram) + hparams.ref_level_db)  # Convert back to linear
+    S = _db_to_amp(_denormalize(spectrogram) +
+                   hparams.ref_level_db)  # Convert back to linear
     processor = _lws_processor()
     D = processor.run_lws(S.astype(np.float64).T ** hparams.power)
     y = processor.istft(D).astype(np.float32)
@@ -56,7 +57,7 @@ def melspectrogram(y):
 
 
 def _lws_processor():
-    return lws.lws(hparams.win_length, hparams.hop_size, mode="speech")
+    return lws.lws(hparams.win_length, hparams.hop_size, fftsize=hparams.fft_size, mode="speech")
 
 
 # Conversions:
@@ -113,4 +114,5 @@ def test_everything():
     spec = spectrogram(wav)
     quant = quantize(wav)
     print(wav.shape, mel.shape, spec.shape, quant.shape)
-    print(quant.max(), quant.min(), mel.max(), mel.min(), spec.max(), spec.min())
+    print(quant.max(), quant.min(), mel.max(),
+          mel.min(), spec.max(), spec.min())
