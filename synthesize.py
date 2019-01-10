@@ -12,15 +12,17 @@ options:
     -h, --help                   Show this help message and exit
 """
 import os
-import librosa
 import glob
-
-from docopt import docopt
-from model import *
-from hparams import hparams
-from utils import num_params_count
 import pickle
 import time
+
+import librosa
+from docopt import docopt
+
+from .model import *
+from .hparams import hparams
+from .utils import num_params_count
+
 
 if __name__ == "__main__":
     args = docopt(__doc__)
@@ -42,8 +44,8 @@ def main(input_features, checkpoint_path, output_path, preset_path=None, no_cuda
     print("using device:{}".format(device))
 
     # Load preset if specified
-    if preset:
-        with open(preset) as f:
+    if preset_path:
+        with open(preset_path) as f:
             hparams.parse_json(f.read())
 
     if os.path.isdir(checkpoint_path):

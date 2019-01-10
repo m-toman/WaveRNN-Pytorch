@@ -7,32 +7,29 @@ options:
     --checkpoint=<path>         Restore model from checkpoint path if given.
     -h, --help                  Show this help message and exit
 """
-from docopt import docopt
 
 import os
 from os.path import dirname, join, expanduser
-from tqdm import tqdm
 
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from docopt import docopt
+from tqdm import tqdm
 import librosa
-
-from model import build_model
-
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torch import optim
 from torch.utils.data import DataLoader
 
-from model import build_model
-from distributions import *
-from loss_function import nll_loss
-from dataset import raw_collate, discrete_collate, AudiobookDataset
-from hparams import hparams as hp
-from lrschedule import noam_learning_rate_decay, step_learning_rate_decay
+from .model import build_model
+from .distributions import *
+from .loss_function import nll_loss
+from .dataset import raw_collate, discrete_collate, AudiobookDataset
+from .hparams import hparams as hp
+from .lrschedule import noam_learning_rate_decay, step_learning_rate_decay
 
 global_step = 0
 global_epoch = 0

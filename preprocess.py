@@ -8,15 +8,16 @@ options:
     -h, --help              Show help message.
 """
 import os
-from docopt import docopt
-import numpy as np
 import math
 import pickle
-import os
-from audio import *
-from hparams import hparams as hp
-from utils import *
+
+import numpy as np
+from docopt import docopt
 from tqdm import tqdm
+
+from .audio import *
+from .hparams import hparams as hp
+from .utils import *
 
 
 def get_wav_mel(path):

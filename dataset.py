@@ -1,12 +1,12 @@
-import numpy as np
-
 import os
+import pickle
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
-from hparams import hparams as hp
-from utils import mulaw_quantize, inv_mulaw_quantize
-import pickle
+
+from .hparams import hparams as hp
+from .utils import mulaw_quantize, inv_mulaw_quantize
 
 
 class AudiobookDataset(Dataset):

@@ -1,10 +1,11 @@
-import librosa
-import librosa.filters
 import math
 import numpy as np
 from scipy import signal
-from hparams import hparams
 from scipy.io import wavfile
+import librosa
+import librosa.filters
+
+from .hparams import hparams
 
 # r9r9 preprocessing
 import lws
