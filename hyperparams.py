@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 # Default hyperparameters:
-hparams = tf.contrib.training.HParams(
+hyperparams = tf.contrib.training.HParams(
     name="WaveRNN",
     num_workers=8,
     # Input type:
@@ -87,7 +87,7 @@ hparams = tf.contrib.training.HParams(
     batch_size_gen=32,
 )
 
-hparams.seq_len = hparams.seq_len_factor * hparams.hop_size
+hyperparams.seq_len = hyperparams.seq_len_factor * hyperparams.hop_size
 
 # for noam learning rate schedule
-hparams.noam_warm_up_steps = 2000 * (hparams.batch_size // 16)
+hyperparams.noam_warm_up_steps = 2000 * (hyperparams.batch_size // 16)

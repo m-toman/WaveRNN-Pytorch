@@ -5,7 +5,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from .hparams import hparams as hp
+from .hyperparams import hyperparams as hp
 from .distributions import *
 from .utils import num_params, mulaw_quantize, inv_mulaw_quantize
 
@@ -508,7 +508,7 @@ class Model(nn.Module):
 
 
 def build_model():
-    """build model with hparams settings
+    """build model with hyperparams settings
 
     """
     if hp.input_type == 'raw':

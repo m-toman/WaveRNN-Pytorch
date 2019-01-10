@@ -16,7 +16,7 @@ from docopt import docopt
 from tqdm import tqdm
 
 from .audio import *
-from .hparams import hparams as hp
+from .hyperparams import hyperparams as hp
 from .utils import *
 
 

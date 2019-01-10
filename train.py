@@ -10,6 +10,7 @@ options:
 
 import os
 from os.path import dirname, join, expanduser
+import shutil
 
 import numpy as np
 import matplotlib
@@ -28,7 +29,7 @@ from .model import build_model
 from .distributions import *
 from .loss_function import nll_loss
 from .dataset import raw_collate, discrete_collate, AudiobookDataset
-from .hparams import hparams as hp
+from .hyperparams import hyperparams as hp
 from .lrschedule import noam_learning_rate_decay, step_learning_rate_decay
 
 global_step = 0
@@ -40,6 +41,7 @@ use_cuda = torch.cuda.is_available()
 def save_checkpoint(device, model, optimizer, step, checkpoint_dir, epoch):
     checkpoint_path = join(
         checkpoint_dir, "checkpoint_step{:09d}.pth".format(step))
+    last_checkpoint_path = join(checkpoint_dir, "checkpoint.pth")
     optimizer_state = optimizer.state_dict()
     global global_test_step
     torch.save({
@@ -49,6 +51,7 @@ def save_checkpoint(device, model, optimizer, step, checkpoint_dir, epoch):
         "global_epoch": epoch,
         "global_test_step": global_test_step,
     }, checkpoint_path)
+    shutil.copyfile(checkpoint_path, last_checkpoint_path)
     print("Saved checkpoint:", checkpoint_path)
 
 

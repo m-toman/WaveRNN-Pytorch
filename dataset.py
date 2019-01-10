@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from .hparams import hparams as hp
+from .hyperparams import hyperparams as hp
 from .utils import mulaw_quantize, inv_mulaw_quantize
 
 

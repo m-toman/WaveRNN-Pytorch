@@ -5,17 +5,19 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.distributions import Beta, Normal
-from hparams import hparams as hp
+
+from .hyperparams import hyperparams as hp
+
 
 def sample_from_beta_dist(y_hat):
     """
     y_hat (batch_size x seq_len x 2):
-    
+
     """
     # take exponentional to ensure positive
     loc_y = y_hat.exp()
-    alpha = loc_y[:,:,0].unsqueeze(-1)
-    beta = loc_y[:,:,1].unsqueeze(-1)
+    alpha = loc_y[:, :, 0].unsqueeze(-1)
+    beta = loc_y[:, :, 1].unsqueeze(-1)
     dist = Beta(alpha, beta)
     sample = dist.sample()
     # rescale sample from [0,1] to [-1, 1]
@@ -26,14 +28,14 @@ def sample_from_beta_dist(y_hat):
 def beta_mle_loss(y_hat, y, reduce=True):
     """y_hat (batch_size x seq_len x 2)
         y (batch_size x seq_len x 1)
-        
+
     """
     # take exponentional to ensure positive
     loc_y = y_hat.exp()
-    alpha = loc_y[:,:,0].unsqueeze(-1)
-    beta = loc_y[:,:,1].unsqueeze(-1)
+    alpha = loc_y[:, :, 0].unsqueeze(-1)
+    beta = loc_y[:, :, 1].unsqueeze(-1)
     dist = Beta(alpha, beta)
-    # rescale y to be between 
+    # rescale y to be between
     y = (y + 1.0)/2.0
     # note that we will get inf loss if y == 0 or 1.0 exactly, so we will clip it slightly just in case
     y = torch.clamp(y, 1e-5, 0.99999)
@@ -71,7 +73,7 @@ def discretized_mix_logistic_loss(y_hat, y, num_classes=256,
     Returns
         Tensor: loss
     """
-    y_hat = y_hat.permute(0,2,1)
+    y_hat = y_hat.permute(0, 2, 1)
     assert y_hat.dim() == 3
     assert y_hat.size(1) % 3 == 0
     nr_mix = y_hat.size(1) // 3
@@ -82,7 +84,8 @@ def discretized_mix_logistic_loss(y_hat, y, num_classes=256,
     # unpack parameters. (B, T, num_mixtures) x 3
     logit_probs = y_hat[:, :, :nr_mix]
     means = y_hat[:, :, nr_mix:2 * nr_mix]
-    log_scales = torch.clamp(y_hat[:, :, 2 * nr_mix:3 * nr_mix], min=log_scale_min)
+    log_scales = torch.clamp(
+        y_hat[:, :, 2 * nr_mix:3 * nr_mix], min=log_scale_min)
 
     # B x T x 1 -> B x T x num_mixtures
     y = y.expand_as(means)
@@ -126,7 +129,8 @@ def discretized_mix_logistic_loss(y_hat, y, num_classes=256,
         torch.log(torch.clamp(cdf_delta, min=1e-12)) + \
         (1. - inner_inner_cond) * (log_pdf_mid - np.log((num_classes - 1) / 2))
     inner_cond = (y > 0.999).float()
-    inner_out = inner_cond * log_one_minus_cdf_min + (1. - inner_cond) * inner_inner_out
+    inner_out = inner_cond * log_one_minus_cdf_min + \
+        (1. - inner_cond) * inner_inner_out
     cond = (y < -0.999).float()
     log_probs = cond * log_cdf_plus + (1. - cond) * inner_out
 
@@ -197,8 +201,9 @@ def gaussian_loss(y_hat, y, log_std_min=-7.0, reduce=True):
     mean = y_hat[:, :, :1]
     log_std = torch.clamp(y_hat[:, :, 1:], min=log_std_min)
 
-    log_probs = -0.5 * (- math.log(2.0 * math.pi) - 2. * log_std - torch.pow(y - mean, 2) * torch.exp((-2.0 * log_std)))
-    
+    log_probs = -0.5 * (- math.log(2.0 * math.pi) - 2. * log_std -
+                        torch.pow(y - mean, 2) * torch.exp((-2.0 * log_std)))
+
     if reduce:
         return log_probs.squeeze().mean()
     else:
@@ -215,12 +220,10 @@ def sample_from_gaussian(y_hat, log_std_min=-7.0, scale_factor=1.):
     log_std = torch.clamp(y_hat[:, :, 1:], min=log_std_min)
     dist = Normal(mean, torch.exp(log_std))
     sample = dist.sample()
-    sample = torch.clamp(torch.clamp(sample, min=-scale_factor), max=scale_factor)
+    sample = torch.clamp(torch.clamp(
+        sample, min=-scale_factor), max=scale_factor)
     del dist
     return sample
-
-
-
 
 
 def test_gaussian():
