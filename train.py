@@ -108,7 +108,7 @@ def evaluate_model(model, data_loader, checkpoint_dir, limit_eval_to=5):
     for f in test_files:
         if f[-7:] == "mel.npy":
             mel = np.load(os.path.join(test_path, f))
-            wav = model.generate(mel)
+            wav = model.generate(mel).astype(np.float32)
             # save wav
             wav_path = os.path.join(
                 output_dir, "checkpoint_step{:09d}_wav_{}.wav".format(global_step, counter))
